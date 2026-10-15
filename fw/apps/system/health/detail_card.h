@@ -38,6 +38,15 @@ typedef struct HealthDetailZone {
   HealthProgressBarValue progress;
 } HealthDetailZone;
 
+typedef void (*HealthDetailChartDrawCallback)(GContext *ctx, const GRect *bounds, void *context);
+
+//! A chart under the first heading; on round displays it gets a row of its own
+typedef struct HealthDetailChart {
+  int16_t height;
+  HealthDetailChartDrawCallback draw;
+  void *context;
+} HealthDetailChart;
+
 typedef struct HealthDetailCardConfig {
   GColor bg_color;
   int16_t num_headings;
@@ -48,6 +57,7 @@ typedef struct HealthDetailCardConfig {
   int32_t weekly_max;
   int16_t num_zones;
   HealthDetailZone *zones;
+  const HealthDetailChart *chart; //!< Optional, NULL for none
   void *data;
 } HealthDetailCardConfig;
 
@@ -82,6 +92,8 @@ typedef struct HealthDetailCard {
 
   int16_t num_zones;
   HealthDetailZone *zones;
+
+  HealthDetailChart chart; //!< No chart when draw is NULL
 
   int16_t y_origin;
 
