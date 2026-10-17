@@ -360,5 +360,4 @@ pbl_clar_test(test_health_hr_chart
   PLATFORMS obelix gabbro asterix
   DEFINES USE_DISPLAY_PERIMETER_ON_FONT_LAYOUT=1
   OVERRIDES dummy_board
-  TEST_IMAGES
 )

@@ -15,9 +15,14 @@
 
 static GContext s_ctx;
 static FrameBuffer s_fb;
+static bool s_clock_24h;
 
 GContext *graphics_context_get_current_context(void) {
   return &s_ctx;
+}
+
+bool clock_is_24h_style(void) {
+  return s_clock_24h;
 }
 
 static uint8_t s_today_bpm[PBL_MIN_PER_DAY];
@@ -42,6 +47,8 @@ void test_health_hr_detail_card__initialize(void) {
   ContentIndicatorsBuffer *buffer = content_indicator_get_current_buffer();
   content_indicator_init_buffer(buffer);
 
+  s_clock_24h = false;
+  memset(s_today_bpm, 0, sizeof(s_today_bpm));
   s_today = (HealthHrChartData){};
 }
 
@@ -71,7 +78,6 @@ static void prv_show_zones(HealthDetailCard *card) {
 
 // Asleep until 7:00, a workout at 9:00 and readings every 10 minutes after; it is now 14:30
 static void prv_fill_today_bpm(void) {
-  memset(s_today_bpm, 0, sizeof(s_today_bpm));
   for (int m = 3; m < 14 * 60 + 30; m += 10) {
     s_today_bpm[m] = ((m < 7 * 60) ? 54 : 72) + ((m * 37) % 7);
   }
@@ -138,5 +144,25 @@ void test_health_hr_detail_card__render_chart_then_zones(void) {
   prv_fill_today_bpm();
   HealthDetailCard *card = (HealthDetailCard *)prv_create_card_and_render(&health_data);
   prv_show_zones(card);
+  cl_check(gbitmap_pbi_eq(&s_ctx.dest_bitmap, TEST_PBI_FILE));
+}
+
+void test_health_hr_detail_card__render_chart_24h(void) {
+  s_clock_24h = true;
+  prv_fill_today_bpm();
+  prv_create_card_and_render(&(HealthData){});
+  cl_check(gbitmap_pbi_eq(&s_ctx.dest_bitmap, TEST_PBI_FILE));
+}
+
+void test_health_hr_detail_card__render_chart_just_after_midnight(void) {
+  // A few readings within a couple of BPM of each other, so the axis is widened around them
+  s_today_bpm[3] = 72;
+  s_today_bpm[13] = 74;
+  s_today_bpm[23] = 73;
+  s_today = (HealthHrChartData){
+    .minute_bpm = s_today_bpm,
+    .num_minutes = 25,
+  };
+  prv_create_card_and_render(&(HealthData){});
   cl_check(gbitmap_pbi_eq(&s_ctx.dest_bitmap, TEST_PBI_FILE));
 }
