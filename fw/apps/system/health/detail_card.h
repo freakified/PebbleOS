@@ -40,7 +40,7 @@ typedef struct HealthDetailZone {
 
 typedef void (*HealthDetailChartDrawCallback)(GContext *ctx, const GRect *bounds, void *context);
 
-//! A chart under the first heading; on round displays it gets a row of its own
+//! A chart boxed in above the first heading; on round displays it gets a row of its own, below it
 typedef struct HealthDetailChart {
   int16_t height;
   GColor bg_color; //!< Fill behind the chart

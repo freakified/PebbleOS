@@ -19,10 +19,11 @@
 #include <applib/graphics/text.h>
 #include <kernel/pbl_malloc.h>
 
-#define BAR_COLOR    PBL_IF_COLOR_ELSE(GColorSunsetOrange, GColorBlack)
-#define MARKER_COLOR TEXT_COLOR
-#define TEXT_COLOR   gcolor_legible_over(HEALTH_HR_CHART_BG_COLOR)
-#define GRID_COLOR   PBL_IF_COLOR_ELSE(GColorRoseVale, GColorBlack)
+#define BAR_COLOR         PBL_IF_COLOR_ELSE(GColorDarkCandyAppleRed, GColorBlack)
+#define MARKER_COLOR      BAR_COLOR
+#define MARKER_FILL_COLOR GColorWhite
+#define TEXT_COLOR        gcolor_legible_over(HEALTH_HR_CHART_BG_COLOR)
+#define GRID_COLOR        PBL_IF_COLOR_ELSE(GColorRoseVale, GColorBlack)
 
 //! Smallest BPM span of the y axis, so flat days don't exaggerate small changes
 #define MIN_BPM_SPAN 30
@@ -278,7 +279,7 @@ static void prv_draw_latest(GContext *ctx, const ChartLayout *layout, int16_t x,
   graphics_fill_oval(ctx, grect_inset(bar, GEdgeInsets(-3)), GOvalScaleModeFitCircle);
   graphics_context_set_fill_color(ctx, MARKER_COLOR);
   graphics_fill_oval(ctx, grect_inset(bar, GEdgeInsets(-2)), GOvalScaleModeFitCircle);
-  graphics_context_set_fill_color(ctx, HEALTH_HR_CHART_BG_COLOR);
+  graphics_context_set_fill_color(ctx, MARKER_FILL_COLOR);
   graphics_fill_oval(ctx, bar, GOvalScaleModeFitCircle);
 }
 
