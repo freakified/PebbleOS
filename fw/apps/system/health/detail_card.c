@@ -28,12 +28,76 @@
 //! Empty rows between the chart and its heading below
 #define CHART_HEADING_GAP (2)
 
-//! @return The bottom of the last heading drawn, 0 if none
-static int16_t prv_draw_headings(HealthDetailCard *detail_card, GContext *ctx, const Layer *layer,
-                                 int first, int count) {
+static void prv_draw_heading(HealthDetailCard *detail_card, GContext *ctx,
+                             const HealthDetailHeading *heading, const GRect *rect) {
+  const GRect header_rect = *rect;
+#if PBL_BW
+  if (!gcolor_equal(heading->outline_color, GColorClear)) {
+    const GRect inner_rect = grect_inset(header_rect, GEdgeInsets(1));
+    const uint16_t inner_corner_radius = CORNER_RADIUS - 1;
+    graphics_context_set_stroke_color(ctx, heading->outline_color);
+    graphics_draw_round_rect(ctx, &inner_rect, inner_corner_radius);
+    graphics_draw_round_rect(ctx, &header_rect, CORNER_RADIUS);
+  }
+#else
+  graphics_context_set_fill_color(ctx, heading->fill_color);
+  graphics_fill_round_rect(ctx, &header_rect, CORNER_RADIUS, GCornersAll);
+#endif
+
+  const bool has_secondary_heading = heading->secondary_label;
+
+  GRect label_rect = header_rect;
+  if (has_secondary_heading) {
+    label_rect.size.w /= 2;
+  }
+  label_rect.size.h = 12; // Restrict to a single line
+
+  graphics_context_set_text_color(ctx, gcolor_legible_over(heading->fill_color));
+
+  graphics_draw_text(ctx, heading->primary_label, detail_card->heading_label_font, label_rect,
+                     GTextOverflowModeWordWrap, GTextAlignmentCenter, nullptr);
+
+  const int16_t value_rect_y_padding = 12;
+
+  GRect value_rect = label_rect;
+  value_rect.origin.y += value_rect_y_padding;
+
+  graphics_draw_text(ctx, heading->primary_value, detail_card->heading_value_font, value_rect,
+                     GTextOverflowModeWordWrap, GTextAlignmentCenter, nullptr);
+
+  if (!heading->secondary_label) {
+    return;
+  }
+
+  const int separator_padding = 5;
+
+  GPoint separator_top_point = GPoint(header_rect.origin.x + (header_rect.size.w / 2) - 1,
+                                      header_rect.origin.y + separator_padding);
+  GPoint separator_bot_point =
+      GPoint(separator_top_point.x,
+             separator_top_point.y + header_rect.size.h - (separator_padding * 2) - 1);
+
+  graphics_draw_line(ctx, separator_top_point, separator_bot_point);
+
+  // draw another line to make the width 2px
+  separator_top_point.x++;
+  separator_bot_point.x++;
+  graphics_draw_line(ctx, separator_top_point, separator_bot_point);
+
+  label_rect.origin.x += label_rect.size.w;
+  value_rect.origin.x += value_rect.size.w;
+
+  graphics_draw_text(ctx, heading->secondary_label, detail_card->heading_label_font, label_rect,
+                     GTextOverflowModeWordWrap, GTextAlignmentCenter, nullptr);
+
+  graphics_draw_text(ctx, heading->secondary_value, detail_card->heading_value_font, value_rect,
+                     GTextOverflowModeWordWrap, GTextAlignmentCenter, nullptr);
+}
+
+static void prv_draw_headings(HealthDetailCard *detail_card, GContext *ctx, const Layer *layer,
+                              int first, int count) {
   const int16_t rect_padding = PBL_IF_RECT_ELSE(5 + HEALTH_PADDING_OFFSET, 22);
   const int16_t rect_height = HEADING_HEIGHT;
-  int16_t bottom = 0;
 
   for (int n = 0; n < count; n++) {
     const int i = first + n;
@@ -55,73 +119,11 @@ static int16_t prv_draw_headings(HealthDetailCard *detail_card, GContext *ctx, c
     GRect header_rect = grect_inset(layer->bounds, GEdgeInsets(rect_padding));
     header_rect.origin.y += PBL_IF_RECT_ELSE(detail_card->y_origin, header_y_origin);
     header_rect.size.h = rect_height;
-    bottom = header_rect.origin.y + rect_height;
 
     detail_card->y_origin += rect_height + rect_padding;
 
-#if PBL_BW
-    if (!gcolor_equal(heading->outline_color, GColorClear)) {
-      const GRect inner_rect = grect_inset(header_rect, GEdgeInsets(1));
-      const uint16_t inner_corner_radius = CORNER_RADIUS - 1;
-      graphics_context_set_stroke_color(ctx, heading->outline_color);
-      graphics_draw_round_rect(ctx, &inner_rect, inner_corner_radius);
-      graphics_draw_round_rect(ctx, &header_rect, CORNER_RADIUS);
-    }
-#else
-    graphics_context_set_fill_color(ctx, heading->fill_color);
-    graphics_fill_round_rect(ctx, &header_rect, CORNER_RADIUS, GCornersAll);
-#endif
-
-    const bool has_secondary_heading = heading->secondary_label;
-
-    GRect label_rect = header_rect;
-    if (has_secondary_heading) {
-      label_rect.size.w /= 2;
-    }
-    label_rect.size.h = 12; // Restrict to a single line
-
-    graphics_context_set_text_color(ctx, gcolor_legible_over(heading->fill_color));
-
-    graphics_draw_text(ctx, heading->primary_label, detail_card->heading_label_font, label_rect,
-                       GTextOverflowModeWordWrap, GTextAlignmentCenter, nullptr);
-
-    const int16_t value_rect_y_padding = 12;
-
-    GRect value_rect = label_rect;
-    value_rect.origin.y += value_rect_y_padding;
-
-    graphics_draw_text(ctx, heading->primary_value, detail_card->heading_value_font, value_rect,
-                       GTextOverflowModeWordWrap, GTextAlignmentCenter, nullptr);
-
-    if (!heading->secondary_label) {
-      continue;
-    }
-
-    const int separator_padding = 5;
-
-    GPoint separator_top_point = GPoint(header_rect.origin.x + (header_rect.size.w / 2) - 1,
-                                        header_rect.origin.y + separator_padding);
-    GPoint separator_bot_point =
-        GPoint(separator_top_point.x,
-               separator_top_point.y + header_rect.size.h - (separator_padding * 2) - 1);
-
-    graphics_draw_line(ctx, separator_top_point, separator_bot_point);
-
-    // draw another line to make the width 2px
-    separator_top_point.x++;
-    separator_bot_point.x++;
-    graphics_draw_line(ctx, separator_top_point, separator_bot_point);
-
-    label_rect.origin.x += label_rect.size.w;
-    value_rect.origin.x += value_rect.size.w;
-
-    graphics_draw_text(ctx, heading->secondary_label, detail_card->heading_label_font, label_rect,
-                       GTextOverflowModeWordWrap, GTextAlignmentCenter, nullptr);
-
-    graphics_draw_text(ctx, heading->secondary_value, detail_card->heading_value_font, value_rect,
-                       GTextOverflowModeWordWrap, GTextAlignmentCenter, nullptr);
+    prv_draw_heading(detail_card, ctx, heading, &header_rect);
   }
-  return bottom;
 }
 
 static void prv_draw_subtitles(HealthDetailCard *detail_card, GContext *ctx, const Layer *layer) {
@@ -209,14 +211,19 @@ static void prv_draw_chart(HealthDetailCard *detail_card, GContext *ctx, const L
   // The chart has a page of its own here, so fill all of it
   graphics_context_set_fill_color(ctx, detail_card->chart.bg_color);
   graphics_fill_rect(ctx, &layer->bounds);
-  const int16_t heading_bottom =
-      prv_draw_headings(detail_card, ctx, layer, 0, prv_num_chart_headings(detail_card));
-  // Narrower than the heading, as the display is narrower at the chart's labels
-  const int16_t inset = 32;
+  // Centred, where the display is widest, with the heading above it
+  const int16_t inset = 18;
   // Room for the chart's top range label, which rises above it
   const int16_t spacing = 12;
-  const GRect chart_rect = GRect(inset, heading_bottom + spacing,
-                                 layer->bounds.size.w - (2 * inset), detail_card->chart.height);
+  const int16_t chart_h = detail_card->chart.height;
+  const GRect chart_rect = GRect(inset, (layer->bounds.size.h - chart_h) / 2,
+                                 layer->bounds.size.w - (2 * inset), chart_h);
+  if (prv_num_chart_headings(detail_card) > 0) {
+    GRect header_rect = grect_inset(layer->bounds, GEdgeInsets(0, 22));
+    header_rect.origin.y = chart_rect.origin.y - spacing - HEADING_HEIGHT;
+    header_rect.size.h = HEADING_HEIGHT;
+    prv_draw_heading(detail_card, ctx, &detail_card->headings[0], &header_rect);
+  }
   detail_card->chart.draw(ctx, &chart_rect, detail_card->chart.context);
 }
 #endif
