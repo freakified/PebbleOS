@@ -101,8 +101,9 @@ Window *health_hr_detail_card_create(HealthData *health_data, const HealthHrChar
     /// Heading above a chart of today's heart rate and its lowest to highest reading
     .primary_label = (char *)i18n_get("TODAY'S RANGE", card_data),
     .primary_value = app_zalloc_check(buffer_size),
-    .fill_color = PBL_IF_COLOR_ELSE(GColorDarkCandyAppleRed, GColorWhite),
-    .outline_color = PBL_IF_COLOR_ELSE(GColorClear, GColorBlack),
+    // One block with the chart's box
+    .fill_color = HEALTH_HR_CHART_BG_COLOR,
+    .outline_color = GColorClear,
   };
   prv_set_range_value(range_heading->primary_value, buffer_size, &card_data->chart, card_data);
 
@@ -112,7 +113,7 @@ Window *health_hr_detail_card_create(HealthData *health_data, const HealthHrChar
     /// Heading above the time spent in each heart rate zone today
     .primary_label = (char *)i18n_get("TIME IN ZONES", card_data),
     .primary_value = app_zalloc_check(buffer_size),
-    .fill_color = PBL_IF_COLOR_ELSE(GColorSunsetOrange, GColorWhite),
+    .fill_color = PBL_IF_COLOR_ELSE(GColorDarkCandyAppleRed, GColorWhite),
     .outline_color = PBL_IF_COLOR_ELSE(GColorClear, GColorBlack),
   };
 
@@ -121,6 +122,7 @@ Window *health_hr_detail_card_create(HealthData *health_data, const HealthHrChar
 
   const HealthDetailChart chart = {
     .height = CHART_HEIGHT,
+    .bg_color = HEALTH_HR_CHART_BG_COLOR,
     .draw = prv_draw_chart,
     .context = card_data,
   };

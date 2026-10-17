@@ -20,11 +20,15 @@
 
 #define CORNER_RADIUS (3)
 
+#define HEADING_HEIGHT    (35)
+#define CHART_BOX_BORDER  (2)
+#define CHART_BOX_PADDING (3)
+
 //! @return The bottom of the last heading drawn, 0 if none
 static int16_t prv_draw_headings(HealthDetailCard *detail_card, GContext *ctx, const Layer *layer,
                                  int first, int count) {
   const int16_t rect_padding = PBL_IF_RECT_ELSE(5 + HEALTH_PADDING_OFFSET, 22);
-  const int16_t rect_height = 35;
+  const int16_t rect_height = HEADING_HEIGHT;
   int16_t bottom = 0;
 
   for (int n = 0; n < count; n++) {
@@ -52,11 +56,13 @@ static int16_t prv_draw_headings(HealthDetailCard *detail_card, GContext *ctx, c
     detail_card->y_origin += rect_height + rect_padding;
 
 #if PBL_BW
-    const GRect inner_rect = grect_inset(header_rect, GEdgeInsets(1));
-    const uint16_t inner_corner_radius = CORNER_RADIUS - 1;
-    graphics_context_set_stroke_color(ctx, heading->outline_color);
-    graphics_draw_round_rect(ctx, &inner_rect, inner_corner_radius);
-    graphics_draw_round_rect(ctx, &header_rect, CORNER_RADIUS);
+    if (!gcolor_equal(heading->outline_color, GColorClear)) {
+      const GRect inner_rect = grect_inset(header_rect, GEdgeInsets(1));
+      const uint16_t inner_corner_radius = CORNER_RADIUS - 1;
+      graphics_context_set_stroke_color(ctx, heading->outline_color);
+      graphics_draw_round_rect(ctx, &inner_rect, inner_corner_radius);
+      graphics_draw_round_rect(ctx, &header_rect, CORNER_RADIUS);
+    }
 #else
     graphics_context_set_fill_color(ctx, heading->fill_color);
     graphics_fill_round_rect(ctx, &header_rect, CORNER_RADIUS, GCornersAll);
@@ -155,18 +161,58 @@ static int prv_num_chart_headings(const HealthDetailCard *detail_card) {
   return (detail_card->chart.draw && detail_card->num_headings > 0) ? 1 : 0;
 }
 
+#if PBL_RECT
+//! Boxes the chart in with its heading, so what follows doesn't read as the chart's caption
+static void prv_draw_chart_box(HealthDetailCard *detail_card, GContext *ctx, const Layer *layer,
+                               int16_t chart_bottom) {
+  const int16_t rect_padding = 5 + HEALTH_PADDING_OFFSET;
+  GRect box = grect_inset(layer->bounds, GEdgeInsets(rect_padding));
+  box.origin.y += detail_card->y_origin;
+  box.size.h = chart_bottom + CHART_BOX_PADDING + CHART_BOX_BORDER - box.origin.y;
+
+#if PBL_BW
+  const GRect inner_rect = grect_inset(box, GEdgeInsets(1));
+  graphics_context_set_stroke_color(ctx, GColorBlack);
+  graphics_draw_round_rect(ctx, &box, CORNER_RADIUS);
+  graphics_draw_round_rect(ctx, &inner_rect, CORNER_RADIUS - 1);
+#else
+  const GRect inner_rect = grect_inset(
+      box, GEdgeInsets(HEADING_HEIGHT, CHART_BOX_BORDER, CHART_BOX_BORDER, CHART_BOX_BORDER));
+  graphics_context_set_fill_color(ctx, detail_card->headings[0].fill_color);
+  graphics_fill_round_rect(ctx, &box, CORNER_RADIUS, GCornersAll);
+  graphics_context_set_fill_color(ctx, detail_card->chart.bg_color);
+  graphics_fill_round_rect(ctx, &inner_rect, CORNER_RADIUS - 1, GCornersBottom);
+#endif
+}
+#endif
+
 static void prv_draw_chart(HealthDetailCard *detail_card, GContext *ctx, const Layer *layer) {
-  const int16_t heading_bottom =
-      prv_draw_headings(detail_card, ctx, layer, 0, prv_num_chart_headings(detail_card));
   // Round displays are narrower at the chart's labels than at the heading, so inset further
-  const int16_t inset = PBL_IF_RECT_ELSE(5 + HEALTH_PADDING_OFFSET, 32);
-  // The chart's top range label rises above it, so small displays need extra room
-  const int16_t spacing = PBL_IF_RECT_ELSE(MAX(8, 5 + HEALTH_PADDING_OFFSET), 12);
+  const int16_t inset =
+      PBL_IF_RECT_ELSE(5 + HEALTH_PADDING_OFFSET + CHART_BOX_BORDER + CHART_BOX_PADDING, 32);
+  // The chart's top range label rises above it, so small displays need extra room. In colour the
+  // heading has no edge of its own, so its padding already separates it.
+  const int16_t spacing =
+      PBL_IF_RECT_ELSE(MAX(8, 5 + HEALTH_PADDING_OFFSET) - PBL_IF_COLOR_ELSE(2, 0), 12);
   const int16_t chart_h = detail_card->chart.height;
+  const int num_headings = prv_num_chart_headings(detail_card);
+#if PBL_ROUND
+  // The chart has a page of its own here, so fill all of it
+  graphics_context_set_fill_color(ctx, detail_card->chart.bg_color);
+  graphics_fill_rect(ctx, &layer->bounds);
+#else
+  if (num_headings > 0) {
+    const int16_t chart_bottom =
+        detail_card->y_origin + 5 + HEALTH_PADDING_OFFSET + HEADING_HEIGHT + spacing + chart_h;
+    prv_draw_chart_box(detail_card, ctx, layer, chart_bottom);
+  }
+#endif
+  const int16_t heading_bottom = prv_draw_headings(detail_card, ctx, layer, 0, num_headings);
   const GRect chart_rect =
       GRect(inset, heading_bottom + spacing, layer->bounds.size.w - (2 * inset), chart_h);
   detail_card->chart.draw(ctx, &chart_rect, detail_card->chart.context);
-  detail_card->y_origin += chart_h + spacing;
+  detail_card->y_origin +=
+      chart_h + spacing + PBL_IF_RECT_ELSE(CHART_BOX_PADDING + CHART_BOX_BORDER, 0);
 }
 
 static void prv_draw_progress_bar(GContext *ctx, HealthProgressBar *progress_bar, GColor bg_color,

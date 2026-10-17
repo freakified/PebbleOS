@@ -19,23 +19,24 @@
 #include <applib/graphics/text.h>
 #include <kernel/pbl_malloc.h>
 
-// Same palette as the heart rate summary card
-#define BAR_COLOR        PBL_IF_COLOR_ELSE(GColorDarkCandyAppleRed, GColorBlack)
-#define RANGE_TEXT_COLOR PBL_IF_COLOR_ELSE(GColorBulgarianRose, GColorBlack)
-#define TIME_TEXT_COLOR  PBL_IF_COLOR_ELSE(GColorDarkGray, GColorBlack)
-#define GRID_COLOR       PBL_IF_COLOR_ELSE(GColorLightGray, GColorBlack)
+#define BAR_COLOR    PBL_IF_COLOR_ELSE(GColorSunsetOrange, GColorBlack)
+#define MARKER_COLOR TEXT_COLOR
+#define TEXT_COLOR   gcolor_legible_over(HEALTH_HR_CHART_BG_COLOR)
+#define GRID_COLOR   PBL_IF_COLOR_ELSE(GColorRoseVale, GColorBlack)
 
 //! Smallest BPM span of the y axis, so flat days don't exaggerate small changes
-#define MIN_BPM_SPAN  20
+#define MIN_BPM_SPAN 30
+//! The y axis ends on multiples of this, so its labels read as a scale
+#define BPM_AXIS_STEP 10
 #define MAX_BAR_WIDTH 4
 #define GRID_HOURS    6
 #define LABEL_PADDING 3
-//! Empty rows between a range leader and the bars it marks
-#define LEADER_GAP 1
-//! Empty columns between the end of the range leaders and the widest label
-#define LEADER_PADDING 5
-#define BUCKET_MINUTES PBL_MIN_PER_HOUR
-#define NUM_BUCKETS    PBL_HOUR_PER_DAY
+//! Empty rows between the axis lines and the bars
+#define AXIS_GAP 1
+//! Empty columns between the end of the axis lines and the widest label
+#define AXIS_LINE_PADDING 5
+#define BUCKET_MINUTES    PBL_MIN_PER_HOUR
+#define NUM_BUCKETS       PBL_HOUR_PER_DAY
 //! Empty columns between a grid line and the bars on either side of it
 #define GRID_GAP       1
 #define GRID_BUCKETS   (GRID_HOURS * PBL_MIN_PER_HOUR / BUCKET_MINUTES)
@@ -135,8 +136,8 @@ typedef struct {
   int16_t pitch;
   int16_t bar_width;
   int16_t grid_spacing;
-  uint8_t lo_bpm;
-  uint8_t hi_bpm;
+  int16_t lo_bpm;
+  int16_t hi_bpm;
 } ChartLayout;
 
 //! Solid on color displays, dotted on black and white so lines stay lighter than the bars
@@ -167,8 +168,8 @@ static int16_t prv_bucket_x(const ChartLayout *layout, int bucket) {
 }
 
 static int16_t prv_bpm_to_y(const ChartLayout *layout, uint8_t bpm) {
-  // Keep room at both ends for half a bar and a range leader beyond it
-  const int16_t inset = (layout->bar_width / 2) + 1 + LEADER_GAP;
+  // Keep room at both ends for half a bar and the axis line beyond it
+  const int16_t inset = (layout->bar_width / 2) + 1 + AXIS_GAP;
   const int16_t span_px = layout->plot.size.h - 1 - (2 * inset);
   const int16_t bottom = layout->plot.origin.y + layout->plot.size.h - 1 - inset;
   return bottom - ((bpm - layout->lo_bpm) * span_px) / (layout->hi_bpm - layout->lo_bpm);
@@ -233,7 +234,7 @@ static void prv_draw_grid(GContext *ctx, const ChartLayout *layout, GFont font,
     chart->am_pm_checked = true;
   }
   graphics_context_set_stroke_color(ctx, GRID_COLOR);
-  graphics_context_set_text_color(ctx, TIME_TEXT_COLOR);
+  graphics_context_set_text_color(ctx, TEXT_COLOR);
   for (int hour = 0; hour <= PBL_HOUR_PER_DAY; hour += GRID_HOURS) {
     const int16_t x = plot->origin.x + (hour / GRID_HOURS) * grid_spacing;
     prv_draw_grid_line(ctx, GPoint(x, plot->origin.y), GPoint(x, label_y + label_h - 1));
@@ -257,9 +258,8 @@ static GRect prv_range_label_rect(const GRect *column, int16_t y, GFont font) {
   return GRect(column->origin.x, y - text_offset, column->size.w, font_h + LABEL_PADDING);
 }
 
-//! Dotted line across the chart at row y, drawn under the bars
-static void prv_draw_range_leader(GContext *ctx, const ChartLayout *layout, int16_t y,
-                                  int16_t end_x) {
+//! Line across the chart at row y, drawn under the bars
+static void prv_draw_axis_line(GContext *ctx, const ChartLayout *layout, int16_t y, int16_t end_x) {
   graphics_context_set_stroke_color(ctx, GRID_COLOR);
   prv_draw_grid_line(ctx, GPoint(layout->plot.origin.x, y), GPoint(end_x - 1, y));
 }
@@ -267,19 +267,35 @@ static void prv_draw_range_leader(GContext *ctx, const ChartLayout *layout, int1
 static void prv_draw_range_label(GContext *ctx, const GRect *column, int16_t y, const char *text,
                                  GFont font) {
   const GRect rect = prv_range_label_rect(column, y, font);
-  graphics_context_set_text_color(ctx, RANGE_TEXT_COLOR);
+  graphics_context_set_text_color(ctx, TEXT_COLOR);
   graphics_draw_text(ctx, text, font, rect, GTextOverflowModeFill, GTextAlignmentRight, nullptr);
 }
 
 static void prv_draw_latest(GContext *ctx, const ChartLayout *layout, int16_t x, uint8_t bpm) {
   // Same box as a single reading's bar, so the marker is centred on it even at even widths
   const GRect bar = GRect(x, prv_bar_top(layout, bpm), layout->bar_width, layout->bar_width);
-  graphics_context_set_fill_color(ctx, GColorWhite);
+  graphics_context_set_fill_color(ctx, HEALTH_HR_CHART_BG_COLOR);
   graphics_fill_oval(ctx, grect_inset(bar, GEdgeInsets(-3)), GOvalScaleModeFitCircle);
-  graphics_context_set_fill_color(ctx, BAR_COLOR);
+  graphics_context_set_fill_color(ctx, MARKER_COLOR);
   graphics_fill_oval(ctx, grect_inset(bar, GEdgeInsets(-2)), GOvalScaleModeFitCircle);
-  graphics_context_set_fill_color(ctx, GColorWhite);
+  graphics_context_set_fill_color(ctx, HEALTH_HR_CHART_BG_COLOR);
   graphics_fill_oval(ctx, bar, GOvalScaleModeFitCircle);
+}
+
+//! Rounds the range out to whole axis steps of at least MIN_BPM_SPAN, growing whichever end
+//! leaves the readings nearer the edge
+static void prv_get_axis(uint8_t min_bpm, uint8_t max_bpm, int16_t *lo_bpm, int16_t *hi_bpm) {
+  int16_t lo = (min_bpm / BPM_AXIS_STEP) * BPM_AXIS_STEP;
+  int16_t hi = ((max_bpm + BPM_AXIS_STEP - 1) / BPM_AXIS_STEP) * BPM_AXIS_STEP;
+  while (hi - lo < MIN_BPM_SPAN) {
+    if (lo > 0 && (min_bpm - lo) <= (hi - max_bpm)) {
+      lo -= BPM_AXIS_STEP;
+    } else {
+      hi += BPM_AXIS_STEP;
+    }
+  }
+  *lo_bpm = lo;
+  *hi_bpm = hi;
 }
 
 void health_hr_chart_draw(GContext *ctx, const GRect *bounds, HealthHrChart *chart) {
@@ -314,28 +330,21 @@ void health_hr_chart_draw(GContext *ctx, const GRect *bounds, HealthHrChart *cha
   // the full bounds
   const GRect label_column =
       GRect(plot.origin.x + plot.size.w, plot.origin.y, bounds->size.w - plot.size.w, plot.size.h);
-  layout.lo_bpm = min_bpm;
-  layout.hi_bpm = max_bpm;
-  // Widen a narrow range around its middle
-  if (max_bpm - min_bpm < MIN_BPM_SPAN) {
-    const int pad = (MIN_BPM_SPAN - (max_bpm - min_bpm) + 1) / 2;
-    layout.lo_bpm = MAX(min_bpm - pad, 0);
-    layout.hi_bpm = MIN(max_bpm + pad, UINT8_MAX);
-  }
+  prv_get_axis(min_bpm, max_bpm, &layout.lo_bpm, &layout.hi_bpm);
 
-  // Leaders run just outside the highest and lowest bars, and stop short of the wider label
-  const int16_t max_y = prv_bar_top(&layout, max_bpm) - 1 - LEADER_GAP;
-  const int16_t min_y = prv_bar_bottom(&layout, min_bpm) + LEADER_GAP;
-  char max_text[4];
-  char min_text[4];
-  snprintf(max_text, sizeof(max_text), "%d", max_bpm);
-  snprintf(min_text, sizeof(min_text), "%d", min_bpm);
+  // The axis lines frame the plot, and stop short of the wider label
+  const int16_t max_y = plot.origin.y;
+  const int16_t min_y = plot.origin.y + plot.size.h - 1;
+  char max_text[8];
+  char min_text[8];
+  snprintf(max_text, sizeof(max_text), "%d", layout.hi_bpm);
+  snprintf(min_text, sizeof(min_text), "%d", layout.lo_bpm);
   const int16_t text_w =
       MAX(prv_text_width(ctx, max_text, font), prv_text_width(ctx, min_text, font));
-  const int16_t leader_end_x =
-      label_column.origin.x + label_column.size.w - text_w - LEADER_PADDING;
-  prv_draw_range_leader(ctx, &layout, max_y, leader_end_x);
-  prv_draw_range_leader(ctx, &layout, min_y, leader_end_x);
+  const int16_t line_end_x =
+      label_column.origin.x + label_column.size.w - text_w - AXIS_LINE_PADDING;
+  prv_draw_axis_line(ctx, &layout, max_y, line_end_x);
+  prv_draw_axis_line(ctx, &layout, min_y, line_end_x);
 
   graphics_context_set_fill_color(ctx, BAR_COLOR);
   for (int bucket = 0; bucket < NUM_BUCKETS; bucket++) {

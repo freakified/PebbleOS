@@ -43,6 +43,7 @@ typedef void (*HealthDetailChartDrawCallback)(GContext *ctx, const GRect *bounds
 //! A chart under the first heading; on round displays it gets a row of its own
 typedef struct HealthDetailChart {
   int16_t height;
+  GColor bg_color; //!< Fill behind the chart
   HealthDetailChartDrawCallback draw;
   void *context;
 } HealthDetailChart;

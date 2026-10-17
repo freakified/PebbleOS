@@ -99,7 +99,7 @@ static GRect prv_chart_bounds(void) {
 }
 
 static void prv_render(uint16_t num_minutes) {
-  graphics_context_set_fill_color(&s_ctx, GColorWhite);
+  graphics_context_set_fill_color(&s_ctx, HEALTH_HR_CHART_BG_COLOR);
   graphics_fill_rect(&s_ctx, &GRect(0, 0, DISP_COLS, DISP_ROWS));
   const GRect bounds = prv_chart_bounds();
   HealthHrChart chart;
@@ -202,5 +202,14 @@ void test_health_hr_chart__render_typical_day_24h(void) {
 void test_health_hr_chart__render_flat_day(void) {
   prv_fill_background(MINUTE(0, 0), MINUTE(10, 0), 60, 0);
   prv_render(MINUTE(10, 0));
+  cl_check(gbitmap_pbi_eq(&s_ctx.dest_bitmap, TEST_PBI_FILE));
+}
+
+void test_health_hr_chart__render_just_after_midnight(void) {
+  // A few readings within a couple of BPM of each other
+  s_minute_bpm[MINUTE(0, 3)] = 72;
+  s_minute_bpm[MINUTE(0, 13)] = 74;
+  s_minute_bpm[MINUTE(0, 23)] = 73;
+  prv_render(MINUTE(0, 25));
   cl_check(gbitmap_pbi_eq(&s_ctx.dest_bitmap, TEST_PBI_FILE));
 }

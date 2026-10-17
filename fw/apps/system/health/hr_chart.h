@@ -11,6 +11,9 @@
 
 #include <applib/graphics/gtypes.h>
 
+//! Background the chart is drawn over
+#define HEALTH_HR_CHART_BG_COLOR PBL_IF_COLOR_ELSE(GColorBulgarianRose, GColorWhite)
+
 //! Readings further apart than this (in BPM) split a bucket into separate clusters
 #define HEALTH_HR_CHART_CLUSTER_GAP_BPM 10
 
